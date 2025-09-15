@@ -33,9 +33,9 @@
     .btn.active{background:var(--accent);color:#06241a;border-color:#0ea972}
 
     /* Controls layout: qty + mod compact on one line, presets take remaining space */
-    .row{display:grid;grid-template-columns:auto auto 1fr;align-items:end;gap:12px}
-    @media (min-width:420px){ .row{grid-template-columns:auto auto 1fr} }
-    @media (min-width:640px){ .row{grid-template-columns:auto auto 1fr} }
+    .row{display:grid;grid-template-columns:auto auto;align-items:end;gap:12px}
+    @media (min-width:420px){ .row{grid-template-columns:auto auto} }
+    @media (min-width:640px){ .row{grid-template-columns:auto auto} }
 
     .field{display:flex;flex-direction:column;gap:6px}
     .ctrl{display:flex;align-items:center;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--panel)}
@@ -52,9 +52,6 @@
     .result-total{font-size:56px;font-weight:900;letter-spacing:-.02em}
     .result-sub{font-size:14px;color:var(--muted)}
 
-    .presets{display:flex;gap:8px;align-items:center}
-    .preset-btn{width:44px;height:44px;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:12px;padding:0;display:inline-flex;align-items:center;justify-content:center}
-    .preset-btn svg{width:22px;height:22px}
     /* Make qty & mod blocks less wide */
     .field.compact{min-width:120px;max-width:160px}
     .field.compact .ctrl input{width:68px}
@@ -100,7 +97,7 @@
       </div>
     </section>
 
-    <!-- Quantity / Modifier / Presets -->
+    <!-- Quantity / Modifier -->
     <section class="row" aria-label="quantity and modifier">
       <div class="field compact">
         <div class="hint">Кубиков</div>
@@ -116,30 +113,6 @@
           <button id="modMinus" aria-label="мод минус">−</button>
           <input id="mod" inputmode="numeric" value="0" aria-label="Модификатор" />
           <button id="modPlus" aria-label="мод плюс">+</button>
-        </div>
-      </div>
-      <div class="field">
-        <div class="hint">Пресеты</div>
-        <div class="presets">
-          <button class="preset-btn" id="preset-attack" aria-label="Атака">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 3l7 7-4 4-7-7 4-4z"></path>
-              <path d="M3 21l6-6"></path>
-            </svg>
-          </button>
-          <button class="preset-btn" id="preset-damage" aria-label="Урон">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2v6"></path>
-              <path d="M12 22l-3-7 3-3 3 3-3 7z"></path>
-              <circle cx="12" cy="10" r="1.5"></circle>
-            </svg>
-          </button>
-          <button class="preset-btn" id="preset-save" aria-label="Спасбросок">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 3l7 4v5a7 7 0 1 1-14 0V7l7-4z"></path>
-              <path d="M12 8v8"></path>
-            </svg>
-          </button>
         </div>
       </div>
     </section>
@@ -168,7 +141,7 @@
 
     <audio id="diceSound" src="the-dice-are-shuffled-and-thrown.mp3" preload="auto"></audio>
     <div id="rollingOverlay" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(11,18,32,.6);backdrop-filter:blur(2px);z-index:20">
-      <svg id="rollingSVG" class="roll-die" viewBox="0 0 96 96" width="120" height="120" fill="none" stroke="currentColor" stroke-width="4" style="animation:spin 1s linear infinite;color:#e2e8f0"></svg>
+      <svg id="rollingSVG" class="roll-die" viewBox="0 0 96 96" width="220" height="220" fill="none" stroke="currentColor" stroke-width="4" style="animation:spin 1s linear infinite;color:#e2e8f0"></svg>
     </div>
   </main>
 </div>
@@ -232,6 +205,8 @@
   const rollingSVG = document.getElementById('rollingSVG');
   let rollingId = 0;
   let pendingResult = null;
+  let rollNumTimer = null;
+  let finalNumTimeout = null;
 
   function polygonPoints(n, r=36, cx=48, cy=48) {
     const pts = [];
@@ -253,6 +228,64 @@
     }
     rollingSVG.innerHTML = svg;
   }
+
+  function rollOne(sides){
+    const seq=[randint(1, sides)];
+    if(state.explode){
+      while(seq[seq.length-1] === sides){ seq.push(randint(1, sides)); }
+    }
+    return seq;
+  }
+
+  function doRoll(){
+    const sides = state.custom ? clamp(parseInt(customSides.value,10)||3,2,1000) : state.sides;
+    const qtyN = clamp(parseInt(state.qty,10)||1,1,20);
+    const modN = parseInt(state.mod,10)||0;
+
+    let rollsFlat = [];
+    let perDieChains = [];
+    for(let i=0;i<qtyN;i++){
+      const chain = rollOne(sides);
+      perDieChains.push(chain);
+      rollsFlat = rollsFlat.concat(chain);
+    }
+
+    const sum = rollsFlat.reduce((a,b)=>a+b,0);
+    const total = sum + modN;
+
+    const res = { ts: Date.now(), sides, qty: qtyN, mod: modN, rolls: rollsFlat, chains: perDieChains, sum, total, explode: state.explode };
+    pendingResult = res;
+    rollingId++;
+    const myId = rollingId;
+    showRolling(sides);
+    vibrate([10,30,10]);
+    playSound();
+    // Schedule the final number to show just before sound ends
+    const revealFinal = () => {
+      const t = document.getElementById('rollingNum');
+      if (t) t.textContent = String(res.total);
+    };
+    // If duration known, reveal 150ms before end; else fallback to 1200ms
+    const durMs = (diceAudio && isFinite(diceAudio.duration) && diceAudio.duration > 0) ? diceAudio.duration * 1000 : 1200;
+    const lead = 150; // ms before the end to lock the final value
+    const delay = Math.max(0, durMs - lead);
+    if (finalNumTimeout) { clearTimeout(finalNumTimeout); }
+    finalNumTimeout = setTimeout(revealFinal, delay);
+
+    diceAudio.onended = () => {
+      if (myId !== rollingId) return;
+      state.last = pendingResult;
+      state.history = [state.last, ...state.history].slice(0,25);
+
+      const t = document.getElementById('rollingNum');
+      if (t) t.textContent = String(state.last.total);
+
+      if (rollNumTimer) { clearInterval(rollNumTimer); rollNumTimer = null; }
+      if (finalNumTimeout) { clearTimeout(finalNumTimeout); finalNumTimeout = null; }
+      hideRolling();
+      renderLast(); renderHistory(); save();
+    };
+  }
   function showRolling(sides){
     setDieSVG(sides);
     if (diceAudio && isFinite(diceAudio.duration) && diceAudio.duration>0) {
@@ -260,10 +293,15 @@
     } else {
       rollingSVG.style.animationDuration = '1.5s';
     }
+    if (rollNumTimer) { clearInterval(rollNumTimer); rollNumTimer = null; }
+    if (finalNumTimeout) { clearTimeout(finalNumTimeout); finalNumTimeout = null; }
+    rollNumTimer = setInterval(()=>{ const t = document.getElementById('rollingNum'); if (t) t.textContent = randint(1, sides); }, 100);
     overlay.style.display = 'flex';
   }
   function hideRolling(){
     overlay.style.display = 'none';
+    if (rollNumTimer) { clearInterval(rollNumTimer); rollNumTimer = null; }
+    if (finalNumTimeout) { clearTimeout(finalNumTimeout); finalNumTimeout = null; }
   }
 
   // PERSIST
@@ -307,59 +345,19 @@
     renderLast(); save();
   });
 
-  // PRESETS
-  document.getElementById('preset-attack').addEventListener('click', ()=>{
-    state.custom=false; state.sides=20; state.qty=1; state.mod=0;
-    qty.value=state.qty; mod.value=state.mod; updateDiceActive(); save(); doRoll();
-  });
-  document.getElementById('preset-damage').addEventListener('click', ()=>{
-    state.custom=false; state.sides=6; state.qty=2; state.mod=0;
-    qty.value=state.qty; mod.value=state.mod; updateDiceActive(); save(); doRoll();
-  });
-  document.getElementById('preset-save').addEventListener('click', ()=>{
-    state.custom=false; state.sides=20; state.qty=1; state.mod=0;
-    qty.value=state.qty; mod.value=state.mod; updateDiceActive(); save(); doRoll();
-  });
-
   // ROLLING
-  function rollOne(sides){
-    const seq=[randint(1, sides)];
-    if(state.explode){
-      while(seq[seq.length-1] === sides){ seq.push(randint(1, sides)); }
+
+  function setDieSVG(sides){
+    let svg = '';
+    if (sides === 100) {
+      svg = `<polygon points="${polygonPoints(10)}" />`;
+    } else if (sides >= 3 && sides <= 32) {
+      svg = `<polygon points="${polygonPoints(sides)}" />`;
+    } else {
+      svg = `<circle cx="48" cy="48" r="36" />`;
     }
-    return seq;
-  }
-
-  function doRoll(){
-    const sides = state.custom ? clamp(parseInt(customSides.value,10)||3,2,1000) : state.sides;
-    const qtyN = clamp(parseInt(state.qty,10)||1,1,20);
-    const modN = parseInt(state.mod,10)||0;
-
-    let rollsFlat = [];
-    let perDieChains = [];
-    for(let i=0;i<qtyN;i++){
-      const chain = rollOne(sides);
-      perDieChains.push(chain);
-      rollsFlat = rollsFlat.concat(chain);
-    }
-
-    const sum = rollsFlat.reduce((a,b)=>a+b,0);
-    const total = sum + modN;
-
-    const res = { ts: Date.now(), sides, qty: qtyN, mod: modN, rolls: rollsFlat, chains: perDieChains, sum, total, explode: state.explode };
-    pendingResult = res;
-    rollingId++;
-    const myId = rollingId;
-    showRolling(sides);
-    vibrate([10,30,10]);
-    playSound();
-    diceAudio.onended = () => {
-      if (myId !== rollingId) return;
-      state.last = pendingResult;
-      state.history = [state.last, ...state.history].slice(0,25);
-      hideRolling();
-      renderLast(); renderHistory(); save();
-    };
+    const text = `<text id="rollingNum" x="48" y="52" text-anchor="middle" dominant-baseline="middle" font-size="28" font-weight="600" fill="currentColor">?</text>`;
+    rollingSVG.innerHTML = svg + text;
   }
 
   // RENDER
