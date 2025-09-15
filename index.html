@@ -22,40 +22,42 @@
     .title{margin:0;font-size:18px}
 
     main{flex:1;display:flex;flex-direction:column;gap:14px;padding:14px}
-    .hint{font-size:13px;color:var(--muted)}
+    section > .hint{font-size:13px;color:var(--muted);margin-bottom:8px;display:block}
 
     .dice-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
-    .btn{appearance:none;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:12px;padding:10px 8px;font-size:15px;font-weight:700;text-align:center;outline:none;transition:.15s transform,.15s background,.15s border}
+    .btn{appearance:none;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:12px;padding:12px 10px;font-size:16px;font-weight:700;text-align:center;outline:none;transition:.15s transform,.15s background,.15s border}
     .btn:active{transform:scale(.98)}
     .btn.active{background:var(--accent);color:#06241a;border-color:#0ea972}
 
-    .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    /* Mobile-first layout: stack controls on phones */
+    .row{display:grid;grid-template-columns:1fr;gap:12px}
+    @media (min-width:420px){ .row{grid-template-columns:1fr 1fr} }
+    @media (min-width:640px){ .row{grid-template-columns:1fr 1fr 1fr} }
+
     .field{display:flex;flex-direction:column;gap:6px}
     .ctrl{display:flex;align-items:center;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--panel)}
-    .ctrl button{background:transparent;color:var(--text);border:0;padding:10px 12px;font-size:18px}
-    .ctrl input{flex:1;background:var(--panel-2);color:var(--text);border:0;padding:10px 0;text-align:center;font-size:16px;min-width:0}
+    .ctrl button{background:transparent;color:var(--text);border:0;padding:12px 14px;font-size:20px}
+    .ctrl input{flex:1;background:var(--panel-2);color:var(--text);border:0;padding:12px 0;text-align:center;font-size:18px;min-width:0}
 
-    .roll{width:100%;padding:16px;border-radius:var(--r-lg);background:var(--accent);color:#06241a;font-size:18px;font-weight:800;border:0;box-shadow:var(--shadow)}
+    .roll{width:100%;padding:18px;border-radius:var(--r-lg);background:var(--accent);color:#06241a;font-size:18px;font-weight:800;border:0;box-shadow:var(--shadow)}
     .roll:active{transform:translateY(1px)}
 
-    .toggles{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px;margin-top:6px;flex-wrap:wrap}
-    .toggles label{display:flex;align-items:center;gap:6px}
+    .toggles{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--muted);font-size:14px;flex-wrap:wrap}
+    .toggles label{display:flex;align-items:center;gap:8px}
 
     .panel{border:1px solid var(--border);background:var(--panel);border-radius:var(--r-lg);padding:14px}
     .result-total{font-size:56px;font-weight:900;letter-spacing:-.02em}
     .result-sub{font-size:14px;color:var(--muted)}
 
-    .presets{display:flex;gap:8px}
-    .preset-btn{flex:1;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:12px;padding:10px;font-size:14px}
+    .presets{display:grid;grid-template-columns:1fr;gap:8px}
+    @media (min-width:420px){ .presets{grid-template-columns:repeat(3,1fr)} }
+    .preset-btn{width:100%;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:12px;padding:12px 10px;font-size:15px;font-weight:700}
 
     .history{display:flex;flex-direction:column;gap:10px}
     .history-item{border:1px solid var(--border);background:var(--panel);border-radius:16px;padding:10px}
     .history-top{display:flex;align-items:center;justify-content:space-between}
     .chip{font-weight:800}
     .icon-btn{border:0;background:#0d1527;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:6px 8px;font-size:13px}
-
-    footer{padding:32px 0 20px;text-align:center;color:var(--muted);font-size:12px}
-    @media (min-width:480px){.dice-grid{grid-template-columns:repeat(9,1fr)}.row{grid-template-columns:1fr 1fr 1fr}}
   </style>
 </head>
 <body>
@@ -111,7 +113,7 @@
       <button id="rollBtn" class="roll">Бросить</button>
       <div class="toggles">
         <label><input type="checkbox" id="tgExplode" /> Взрывные</label>
-        <label><input type="checkbox" id="tgVibrate" checked /> Вибро</label>
+        <label id="vibrateLabel"><input type="checkbox" id="tgVibrate" checked /> Вибро</label>
         <label><input type="checkbox" id="tgSound" /> Звук</label>
         <label><input type="checkbox" id="tgShake" /> Тряска = бросок</label>
       </div>
@@ -133,6 +135,8 @@
       </div>
       <div id="history" class="history"></div>
     </section>
+
+    
   </main>
 </div>
 
@@ -173,7 +177,20 @@
   // UTIL
   const clamp = (v,min,max)=> Math.max(min, Math.min(max, v));
   const randint = (min,max)=> Math.floor(Math.random()*(max-min+1))+min;
-  const vibrate = (pattern=[15]) => { if(state.haptics && navigator.vibrate) navigator.vibrate(pattern); };
+  let vibSupported = 'vibrate' in navigator;
+  const vibrate = (pattern=[20]) => {
+    if (!state.haptics || !vibSupported) return;
+    try {
+      const ok = navigator.vibrate(pattern);
+      if (ok === false) {
+        vibSupported = false;
+        disableVibrateToggle('Вибрация не поддерживается');
+      }
+    } catch(e){
+      vibSupported = false;
+      disableVibrateToggle('Вибрация не поддерживается');
+    }
+  };
   let audioCtx=null; const playSound = () => {
     if(!state.sound) return;
     try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
@@ -219,7 +236,7 @@
   mod.addEventListener('input', ()=>{ state.mod = parseInt(mod.value||'0',10)||0; save(); });
 
   tgExplode.addEventListener('change', ()=>{ state.explode=tgExplode.checked; save(); });
-  tgVibrate.addEventListener('change', ()=>{ state.haptics=tgVibrate.checked; save(); });
+  tgVibrate.addEventListener('change', ()=>{ state.haptics=tgVibrate.checked; save(); if (state.haptics) vibrate([15]); }); });
   tgSound.addEventListener('change', ()=>{ state.sound=tgSound.checked; save(); });
   tgShake.addEventListener('change', ()=>{ state.shake=tgShake.checked; save(); });
 
@@ -319,6 +336,16 @@
     lastAccel={x:acc.x,y:acc.y,z:acc.z};
   }, {passive:true});
 
+  // Helpers to disable vibrate toggle when unsupported
+  function disableVibrateToggle(msg){
+    const label = document.getElementById('vibrateLabel');
+    if (!label) return;
+    tgVibrate.checked = false;
+    tgVibrate.disabled = true;
+    label.style.opacity = .6;
+    label.title = msg || 'Вибрация недоступна';
+  }
+
   // INIT
   function init(){
     qty.value = state.qty; mod.value = state.mod; tgExplode.checked=state.explode; tgVibrate.checked=state.haptics; tgSound.checked=state.sound; tgShake.checked=state.shake;
@@ -332,6 +359,14 @@
 
   btnClear.addEventListener('click', ()=>{ state.history=[]; renderHistory(); save(); });
 
+  // Detect unsupported environments (e.g., iOS Safari) and HTTP
+  if (!('vibrate' in navigator)) disableVibrateToggle('Вибрация не поддерживается в этом браузере');
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+    // Вибро в некоторых браузерах работает только по HTTPS
+    // Не блокируем, но предупреждаем через title
+    const label = document.getElementById('vibrateLabel');
+    if (label && !tgVibrate.disabled) label.title = 'Совет: включите HTTPS/Pages, чтобы вибрация работала стабильнее';
+  }
   init();
 })();
 </script>
