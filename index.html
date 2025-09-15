@@ -76,6 +76,7 @@
 
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     .roll-die { filter: drop-shadow(0 10px 24px rgba(0,0,0,.35)); }
+    #rollingSVG text { font-weight: 100 !important; }
   </style>
 </head>
 <body>
@@ -219,6 +220,7 @@
     }
     return pts.map(p=>p.join(',')).join(' ');
   }
+
   function setDieSVG(sides){
     let svg = '';
     if (sides === 100) {
@@ -229,7 +231,9 @@
     } else {
       svg = `<circle cx="48" cy="48" r="36" />`;
     }
-    rollingSVG.innerHTML = svg;
+    const text = `<text id="rollingNum" x="48" y="52" text-anchor="middle" dominant-baseline="middle" font-size="44" font-weight="900" letter-spacing="-0.02em" fill="currentColor">?</text>`;
+    const modText = `<text id="rollingMod" x="72" y="52" text-anchor="start" dominant-baseline="middle" font-size="18" font-weight="300" letter-spacing="-0.02em" fill="currentColor" opacity="0.9"></text>`;
+    rollingSVG.innerHTML = svg + text + modText;
   }
 
   function rollOne(sides){
@@ -267,6 +271,22 @@
     const revealFinal = () => {
       const t = document.getElementById('rollingNum');
       if (t) t.textContent = String(res.total);
+        const m = document.getElementById('rollingMod');
+        if (m) {
+            if (res.mod > 0) {
+                m.textContent = `+ ${res.mod}`;
+                m.style.setProperty('fill', '#10b981', '');
+                m.setAttribute('fill', '#10b981');
+            } else if (res.mod < 0) {
+                m.textContent = `− ${Math.abs(res.mod)}`;
+                m.style.setProperty('fill', '#ef4444', '');
+                m.setAttribute('fill', '#ef4444');
+            } else {
+                m.textContent = '';
+                m.style.removeProperty('fill');
+                m.removeAttribute('fill');
+            }
+        }
     };
     // If duration known, reveal 150ms before end; else fallback to 1200ms
     const durMs = (diceAudio && isFinite(diceAudio.duration) && diceAudio.duration > 0) ? diceAudio.duration * 1000 : 1200;
@@ -283,6 +303,22 @@
       // Показать финальное число в дайсе
       const t = document.getElementById('rollingNum');
       if (t) t.textContent = String(state.last.total);
+        const m = document.getElementById('rollingMod');
+        if (m) {
+            if (state.last.mod > 0) {
+                m.textContent = `+ ${state.last.mod}`;
+                m.style.setProperty('fill', '#10b981', '');
+                m.setAttribute('fill', '#10b981');
+            } else if (state.last.mod < 0) {
+                m.textContent = `− ${Math.abs(state.last.mod)}`;
+                m.style.setProperty('fill', '#ef4444', '');
+                m.setAttribute('fill', '#ef4444');
+            } else {
+                m.textContent = '';
+                m.style.removeProperty('fill');
+                m.removeAttribute('fill');
+            }
+        }
 
       // Остановить таймеры «мигания» цифр
       if (rollNumTimer) { clearInterval(rollNumTimer); rollNumTimer = null; }
@@ -310,6 +346,12 @@
     }
     if (rollNumTimer) { clearInterval(rollNumTimer); rollNumTimer = null; }
     if (finalNumTimeout) { clearTimeout(finalNumTimeout); finalNumTimeout = null; }
+    const m = document.getElementById('rollingMod');
+    if (m) {
+        m.textContent = '';
+        m.style.removeProperty('fill');
+        m.removeAttribute('fill');
+    }
     rollNumTimer = setInterval(()=>{ const t = document.getElementById('rollingNum'); if (t) t.textContent = randint(1, sides); }, 100);
     overlay.style.display = 'flex';
   }
@@ -360,27 +402,15 @@
     renderLast(); save();
   });
 
-  // ROLLING
-
-  function setDieSVG(sides){
-    let svg = '';
-    if (sides === 100) {
-      svg = `<polygon points="${polygonPoints(10)}" />`;
-    } else if (sides >= 3 && sides <= 32) {
-      svg = `<polygon points="${polygonPoints(sides)}" />`;
-    } else {
-      svg = `<circle cx="48" cy="48" r="36" />`;
-    }
-    const text = `<text id="rollingNum" x="48" y="52" text-anchor="middle" dominant-baseline="middle" font-size="28" font-weight="600" fill="currentColor">?</text>`;
-    rollingSVG.innerHTML = svg + text;
-  }
-
   // RENDER
   function renderLast(){
     if(!state.last){ lastPanel.style.display='none'; return; }
     lastPanel.style.display='block';
     totalEl.textContent = state.last.total;
-    subEl.textContent = `${state.last.qty}×d${state.last.sides}${state.last.mod? (state.last.mod>0? ' + '+state.last.mod : ' − '+Math.abs(state.last.mod)) : ''} → сумма ${state.last.sum}${state.last.explode?' (взрывные)':''}`;
+    const modN = state.last.mod || 0;
+    const modColor = modN > 0 ? '#10b981' : '#ef4444';
+    const modHtml = modN !== 0 ? ` <span style="color:${modColor}">${modN > 0 ? '+ ' : '− '}${Math.abs(modN)}</span>` : '';
+    subEl.innerHTML = `${state.last.qty}×d${state.last.sides} → сумма ${state.last.sum}${modHtml} = ${state.last.total}${state.last.explode?' (взрывные)':''}`;
     if(state.showDetails){
       const parts = state.last.chains.map(ch=> '['+ch.join('+')+']').join(', ');
       rollsEl.textContent = `Кости: ${parts}`;
