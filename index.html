@@ -209,8 +209,9 @@
   let pendingResult = null;
   let rollNumTimer = null;
   let finalNumTimeout = null;
+  let audioEndFallback = null;
 
-  const END_PAUSE_MS = 1000; // пауза после окончания звука, чтобы рассмотреть итог
+  const END_PAUSE_MS = 2000; // пауза после окончания звука, чтобы рассмотреть итог
 
   function polygonPoints(n, r=36, cx=48, cy=48) {
     const pts = [];
@@ -245,6 +246,7 @@
   }
 
   function doRoll(){
+    if (overlay.style.display === 'flex') return;
     const sides = state.custom ? clamp(parseInt(customSides.value,10)||3,2,1000) : state.sides;
     const qtyN = clamp(parseInt(state.qty,10)||1,1,20);
     const modN = parseInt(state.mod,10)||0;
@@ -271,22 +273,27 @@
     const revealFinal = () => {
       const t = document.getElementById('rollingNum');
       if (t) t.textContent = String(res.total);
-        const m = document.getElementById('rollingMod');
-        if (m) {
-            if (res.mod > 0) {
-                m.textContent = `+ ${res.mod}`;
-                m.style.setProperty('fill', '#10b981', '');
-                m.setAttribute('fill', '#10b981');
-            } else if (res.mod < 0) {
-                m.textContent = `− ${Math.abs(res.mod)}`;
-                m.style.setProperty('fill', '#ef4444', '');
-                m.setAttribute('fill', '#ef4444');
-            } else {
-                m.textContent = '';
-                m.style.removeProperty('fill');
-                m.removeAttribute('fill');
-            }
+      const m = document.getElementById('rollingMod');
+      if (m) {
+        if (res.mod > 0) {
+          m.textContent = `+ ${res.mod}`;
+          // Use currentColor by setting CSS color directly
+          m.style.color = '#10b981';
+          m.style.removeProperty('fill');
+          m.removeAttribute('fill');
+        } else if (res.mod < 0) {
+          m.textContent = `− ${Math.abs(res.mod)}`;
+          m.style.color = '#ef4444';
+          m.style.removeProperty('fill');
+          m.removeAttribute('fill');
+        } else {
+          m.textContent = '';
+          m.style.removeProperty('color');
+          m.style.removeProperty('fill');
+          m.removeAttribute('color');
+          m.removeAttribute('fill');
         }
+      }
     };
     // If duration known, reveal 150ms before end; else fallback to 1200ms
     const durMs = (diceAudio && isFinite(diceAudio.duration) && diceAudio.duration > 0) ? diceAudio.duration * 1000 : 1200;
@@ -294,6 +301,44 @@
     const delay = Math.max(0, durMs - lead);
     if (finalNumTimeout) { clearTimeout(finalNumTimeout); }
     finalNumTimeout = setTimeout(revealFinal, delay);
+    if (audioEndFallback) { clearTimeout(audioEndFallback); audioEndFallback = null; }
+    audioEndFallback = setTimeout(() => {
+      if (myId !== rollingId) return;
+      // Finalize exactly like in onended
+      state.last = pendingResult;
+      state.history = [state.last, ...state.history].slice(0,25);
+
+      const t2 = document.getElementById('rollingNum');
+      if (t2) t2.textContent = String(state.last.total);
+      const m2 = document.getElementById('rollingMod');
+      if (m2) {
+        if (state.last.mod > 0) {
+          m2.textContent = `+ ${state.last.mod}`;
+          m2.style.color = '#10b981';
+          m2.style.fill = '#10b981';
+          m2.setAttribute('fill', '#10b981');
+        } else if (state.last.mod < 0) {
+          m2.textContent = `− ${Math.abs(state.last.mod)}`;
+          m2.style.color = '#ef4444';
+          m2.style.fill = '#ef4444';
+          m2.setAttribute('fill', '#ef4444');
+        } else {
+          m2.textContent = '';
+          m2.style.removeProperty('color');
+          m2.style.removeProperty('fill');
+          m2.removeAttribute('fill');
+        }
+      }
+
+      if (rollNumTimer) { clearInterval(rollNumTimer); rollNumTimer = null; }
+      if (finalNumTimeout) { clearTimeout(finalNumTimeout); finalNumTimeout = null; }
+      try { rollingSVG.style.animationPlayState = 'paused'; } catch(e) {}
+      setTimeout(() => {
+        hideRolling();
+        try { rollingSVG.style.animationPlayState = 'running'; } catch(e) {}
+        renderLast(); renderHistory(); save();
+      }, END_PAUSE_MS);
+    }, durMs + 50);
 
     diceAudio.onended = () => {
       if (myId !== rollingId) return;
@@ -303,26 +348,30 @@
       // Показать финальное число в дайсе
       const t = document.getElementById('rollingNum');
       if (t) t.textContent = String(state.last.total);
-        const m = document.getElementById('rollingMod');
-        if (m) {
-            if (state.last.mod > 0) {
-                m.textContent = `+ ${state.last.mod}`;
-                m.style.setProperty('fill', '#10b981', '');
-                m.setAttribute('fill', '#10b981');
-            } else if (state.last.mod < 0) {
-                m.textContent = `− ${Math.abs(state.last.mod)}`;
-                m.style.setProperty('fill', '#ef4444', '');
-                m.setAttribute('fill', '#ef4444');
-            } else {
-                m.textContent = '';
-                m.style.removeProperty('fill');
-                m.removeAttribute('fill');
-            }
+      const m = document.getElementById('rollingMod');
+      if (m) {
+        if (state.last.mod > 0) {
+          m.textContent = `+ ${state.last.mod}`;
+          m.style.color = '#10b981';
+          m.style.fill = '#10b981';
+          m.setAttribute('fill', '#10b981');
+        } else if (state.last.mod < 0) {
+          m.textContent = `− ${Math.abs(state.last.mod)}`;
+          m.style.color = '#ef4444';
+          m.style.fill = '#ef4444';
+          m.setAttribute('fill', '#ef4444');
+        } else {
+          m.textContent = '';
+          m.style.removeProperty('color');
+          m.style.removeProperty('fill');
+          m.removeAttribute('fill');
         }
+      }
 
       // Остановить таймеры «мигания» цифр
       if (rollNumTimer) { clearInterval(rollNumTimer); rollNumTimer = null; }
       if (finalNumTimeout) { clearTimeout(finalNumTimeout); finalNumTimeout = null; }
+      if (audioEndFallback) { clearTimeout(audioEndFallback); audioEndFallback = null; }
 
       // Поставить на паузу вращение и дать пользователю 2 сек. рассмотреть грань
       try { rollingSVG.style.animationPlayState = 'paused'; } catch(e) {}
@@ -346,11 +395,13 @@
     }
     if (rollNumTimer) { clearInterval(rollNumTimer); rollNumTimer = null; }
     if (finalNumTimeout) { clearTimeout(finalNumTimeout); finalNumTimeout = null; }
+    if (audioEndFallback) { clearTimeout(audioEndFallback); audioEndFallback = null; }
     const m = document.getElementById('rollingMod');
     if (m) {
-        m.textContent = '';
-        m.style.removeProperty('fill');
-        m.removeAttribute('fill');
+      m.textContent = '';
+      m.style.removeProperty('fill');
+      m.removeAttribute('fill');
+      m.style.removeProperty('color');
     }
     rollNumTimer = setInterval(()=>{ const t = document.getElementById('rollingNum'); if (t) t.textContent = randint(1, sides); }, 100);
     overlay.style.display = 'flex';
@@ -359,6 +410,7 @@
     overlay.style.display = 'none';
     if (rollNumTimer) { clearInterval(rollNumTimer); rollNumTimer = null; }
     if (finalNumTimeout) { clearTimeout(finalNumTimeout); finalNumTimeout = null; }
+    if (audioEndFallback) { clearTimeout(audioEndFallback); audioEndFallback = null; }
   }
 
   // PERSIST
