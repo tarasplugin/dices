@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Pathfinder Dice Roller</title>
+  <meta name="theme-color" content="#0b1220" />
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#0f172a; --panel-2:#0b1220; --border:#1f2a3c; --text:#e2e8f0;
+      --muted:#93a4b8; --accent:#10b981; --accent-2:#064e3b;
+      --r-lg:20px; --shadow:0 10px 24px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+
+    .app{min-height:100%;display:flex;flex-direction:column}
+    header{position:sticky;top:0;z-index:10;background:rgba(11,18,32,.9);backdrop-filter:saturate(140%) blur(8px);border-bottom:1px solid var(--border)}
+    .bar{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 12px}
+    .title{margin:0;font-size:18px}
+
+    main{flex:1;display:flex;flex-direction:column;gap:14px;padding:14px}
+    .hint{font-size:13px;color:var(--muted)}
+
+    .dice-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+    .btn{appearance:none;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:12px;padding:10px 8px;font-size:15px;font-weight:700;text-align:center;outline:none;transition:.15s transform,.15s background,.15s border}
+    .btn:active{transform:scale(.98)}
+    .btn.active{background:var(--accent);color:#06241a;border-color:#0ea972}
+
+    .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .ctrl{display:flex;align-items:center;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--panel)}
+    .ctrl button{background:transparent;color:var(--text);border:0;padding:10px 12px;font-size:18px}
+    .ctrl input{flex:1;background:var(--panel-2);color:var(--text);border:0;padding:10px 0;text-align:center;font-size:16px;min-width:0}
+
+    .roll{width:100%;padding:16px;border-radius:var(--r-lg);background:var(--accent);color:#06241a;font-size:18px;font-weight:800;border:0;box-shadow:var(--shadow)}
+    .roll:active{transform:translateY(1px)}
+
+    .toggles{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px;margin-top:6px;flex-wrap:wrap}
+    .toggles label{display:flex;align-items:center;gap:6px}
+
+    .panel{border:1px solid var(--border);background:var(--panel);border-radius:var(--r-lg);padding:14px}
+    .result-total{font-size:56px;font-weight:900;letter-spacing:-.02em}
+    .result-sub{font-size:14px;color:var(--muted)}
+
+    .presets{display:flex;gap:8px}
+    .preset-btn{flex:1;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:12px;padding:10px;font-size:14px}
+
+    .history{display:flex;flex-direction:column;gap:10px}
+    .history-item{border:1px solid var(--border);background:var(--panel);border-radius:16px;padding:10px}
+    .history-top{display:flex;align-items:center;justify-content:space-between}
+    .chip{font-weight:800}
+    .icon-btn{border:0;background:#0d1527;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:6px 8px;font-size:13px}
+
+    footer{padding:32px 0 20px;text-align:center;color:var(--muted);font-size:12px}
+    @media (min-width:480px){.dice-grid{grid-template-columns:repeat(9,1fr)}.row{grid-template-columns:1fr 1fr 1fr}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="bar">
+      <h1 class="title">Pathfinder Dice</h1>
+      <button id="toggleDetails" class="icon-btn" aria-label="Переключить детали">Скрыть детали</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Dice selector -->
+    <section>
+      <div class="hint">Выберите кубик</div>
+      <div class="dice-grid" id="diceGrid"></div>
+      <div id="customWrap" class="ctrl" style="display:none;margin-top:10px;gap:10px;align-items:center">
+        <button aria-hidden="true" tabindex="-1" style="opacity:.6">⚙</button>
+        <input id="customSides" inputmode="numeric" pattern="[0-9]*" aria-label="Количество граней" value="3" />
+      </div>
+    </section>
+
+    <!-- Quantity / Modifier / Presets -->
+    <section class="row" aria-label="quantity and modifier">
+      <div class="field">
+        <div class="hint">Кубиков</div>
+        <div class="ctrl">
+          <button id="qtyMinus" aria-label="минус">−</button>
+          <input id="qty" inputmode="numeric" pattern="[0-9]*" value="1" aria-label="Количество кубиков" />
+          <button id="qtyPlus" aria-label="плюс">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="hint">Модификатор</div>
+        <div class="ctrl">
+          <button id="modMinus" aria-label="мод минус">−</button>
+          <input id="mod" inputmode="numeric" value="0" aria-label="Модификатор" />
+          <button id="modPlus" aria-label="мод плюс">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="hint">Пресеты</div>
+        <div class="presets">
+          <button class="preset-btn" id="preset-attack">Атака</button>
+          <button class="preset-btn" id="preset-damage">Урон</button>
+          <button class="preset-btn" id="preset-save">Спас</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Roll & toggles -->
+    <section>
+      <button id="rollBtn" class="roll">Бросить</button>
+      <div class="toggles">
+        <label><input type="checkbox" id="tgExplode" /> Взрывные</label>
+        <label><input type="checkbox" id="tgVibrate" checked /> Вибро</label>
+        <label><input type="checkbox" id="tgSound" /> Звук</label>
+        <label><input type="checkbox" id="tgShake" /> Тряска = бросок</label>
+      </div>
+    </section>
+
+    <!-- Last result -->
+    <section id="lastPanel" class="panel" style="display:none">
+      <div class="hint">Последний результат</div>
+      <div id="total" class="result-total">0</div>
+      <div id="sub" class="result-sub"></div>
+      <div id="rolls" class="result-sub" style="margin-top:6px"></div>
+    </section>
+
+    <!-- History -->
+    <section>
+      <div class="history-head" style="display:flex;align-items:center;justify-content:space-between">
+        <div class="hint">История</div>
+        <button id="btnClear" class="icon-btn" style="color:#94a3b8">Очистить</button>
+      </div>
+      <div id="history" class="history"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  const DICE = [4,6,8,10,12,20,100];
+
+  // STATE
+  let state = { sides:20, custom:false, customSides:3, qty:1, mod:0, showDetails:true,
+                explode:false, haptics:true, sound:false, shake:false, history:[], last:null };
+
+  // ELEMENTS
+  const diceGrid = document.getElementById('diceGrid');
+  const customWrap = document.getElementById('customWrap');
+  const customSides = document.getElementById('customSides');
+
+  const qty = document.getElementById('qty');
+  const qtyMinus = document.getElementById('qtyMinus');
+  const qtyPlus = document.getElementById('qtyPlus');
+  const mod = document.getElementById('mod');
+  const modMinus = document.getElementById('modMinus');
+  const modPlus = document.getElementById('modPlus');
+
+  const tgExplode = document.getElementById('tgExplode');
+  const tgVibrate = document.getElementById('tgVibrate');
+  const tgSound = document.getElementById('tgSound');
+  const tgShake = document.getElementById('tgShake');
+
+  const toggleDetails = document.getElementById('toggleDetails');
+  const lastPanel = document.getElementById('lastPanel');
+  const totalEl = document.getElementById('total');
+  const subEl = document.getElementById('sub');
+  const rollsEl = document.getElementById('rolls');
+  const btnClear = document.getElementById('btnClear');
+  const historyEl = document.getElementById('history');
+
+  // UTIL
+  const clamp = (v,min,max)=> Math.max(min, Math.min(max, v));
+  const randint = (min,max)=> Math.floor(Math.random()*(max-min+1))+min;
+  const vibrate = (pattern=[15]) => { if(state.haptics && navigator.vibrate) navigator.vibrate(pattern); };
+  let audioCtx=null; const playSound = () => {
+    if(!state.sound) return;
+    try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+      const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+      o.type='triangle'; o.frequency.value = 420 + Math.random()*80; g.gain.value=0.002;
+      o.connect(g); g.connect(audioCtx.destination); o.start(); setTimeout(()=>o.stop(), 120);
+    }catch(e){}
+  };
+
+  // PERSIST
+  try{ const saved = JSON.parse(localStorage.getItem('pfr_dice_state')||'{}'); Object.assign(state, saved); }catch(e){}
+  function save(){ try{ localStorage.setItem('pfr_dice_state', JSON.stringify({...state, history: state.history.slice(0,25)})); }catch(e){} }
+
+  // BUILD DICE BUTTONS
+  function buildDice(){
+    diceGrid.innerHTML='';
+    [...DICE, 'custom'].forEach(d=>{
+      const b = document.createElement('button');
+      b.className='btn'; b.textContent = d==='custom'? 'Свой' : ('d'+d); b.dataset.d = d;
+      b.addEventListener('click', ()=>{
+        if(d==='custom'){ state.custom=true; customWrap.style.display='flex'; }
+        else { state.custom=false; state.sides=Number(d); customWrap.style.display='none'; }
+        updateDiceActive(); save();
+      });
+      diceGrid.appendChild(b);
+    });
+    updateDiceActive();
+  }
+  function updateDiceActive(){
+    document.querySelectorAll('#diceGrid .btn').forEach(b=>{
+      const d=b.dataset.d; const isActive = (d==='custom' && state.custom) || (!state.custom && Number(d)===state.sides);
+      b.classList.toggle('active', isActive);
+    });
+  }
+
+  // INPUTS
+  customSides.addEventListener('input', ()=>{ state.customSides = clamp(parseInt(customSides.value||'0',10)||3,2,1000); save(); });
+  qtyMinus.addEventListener('click', ()=>{ qty.value = clamp((parseInt(qty.value,10)||1)-1,1,20); state.qty=Number(qty.value); save(); });
+  qtyPlus.addEventListener('click', ()=>{ qty.value = clamp((parseInt(qty.value,10)||1)+1,1,20); state.qty=Number(qty.value); save(); });
+  qty.addEventListener('input', ()=>{ state.qty = clamp(parseInt(qty.value||'1',10)||1,1,20); qty.value = state.qty; save(); });
+  modMinus.addEventListener('click', ()=>{ state.mod=(parseInt(mod.value,10)||0)-1; mod.value=state.mod; save(); });
+  modPlus.addEventListener('click', ()=>{ state.mod=(parseInt(mod.value,10)||0)+1; mod.value=state.mod; save(); });
+  mod.addEventListener('input', ()=>{ state.mod = parseInt(mod.value||'0',10)||0; save(); });
+
+  tgExplode.addEventListener('change', ()=>{ state.explode=tgExplode.checked; save(); });
+  tgVibrate.addEventListener('change', ()=>{ state.haptics=tgVibrate.checked; save(); });
+  tgSound.addEventListener('change', ()=>{ state.sound=tgSound.checked; save(); });
+  tgShake.addEventListener('change', ()=>{ state.shake=tgShake.checked; save(); });
+
+  toggleDetails.addEventListener('click', ()=>{
+    state.showDetails=!state.showDetails;
+    toggleDetails.textContent = state.showDetails? 'Скрыть детали':'Показать детали';
+    renderLast(); save();
+  });
+
+  // PRESETS
+  document.getElementById('preset-attack').addEventListener('click', ()=>{
+    state.custom=false; state.sides=20; state.qty=1; state.mod=0;
+    qty.value=state.qty; mod.value=state.mod; updateDiceActive(); save(); doRoll();
+  });
+  document.getElementById('preset-damage').addEventListener('click', ()=>{
+    state.custom=false; state.sides=6; state.qty=2; state.mod=0;
+    qty.value=state.qty; mod.value=state.mod; updateDiceActive(); save(); doRoll();
+  });
+  document.getElementById('preset-save').addEventListener('click', ()=>{
+    state.custom=false; state.sides=20; state.qty=1; state.mod=0;
+    qty.value=state.qty; mod.value=state.mod; updateDiceActive(); save(); doRoll();
+  });
+
+  // ROLLING
+  function rollOne(sides){
+    const seq=[randint(1, sides)];
+    if(state.explode){
+      while(seq[seq.length-1] === sides){ seq.push(randint(1, sides)); }
+    }
+    return seq;
+  }
+
+  function doRoll(){
+    const sides = state.custom ? clamp(parseInt(customSides.value,10)||3,2,1000) : state.sides;
+    const qtyN = clamp(parseInt(state.qty,10)||1,1,20);
+    const modN = parseInt(state.mod,10)||0;
+
+    let rollsFlat = [];
+    let perDieChains = [];
+    for(let i=0;i<qtyN;i++){
+      const chain = rollOne(sides);
+      perDieChains.push(chain);
+      rollsFlat = rollsFlat.concat(chain);
+    }
+
+    const sum = rollsFlat.reduce((a,b)=>a+b,0);
+    const total = sum + modN;
+
+    const res = { ts: Date.now(), sides, qty: qtyN, mod: modN, rolls: rollsFlat, chains: perDieChains, sum, total, explode: state.explode };
+    state.last = res; state.history = [res, ...state.history].slice(0,25);
+
+    vibrate([10,30,10]); playSound();
+    renderLast(); renderHistory(); save();
+  }
+
+  // RENDER
+  function renderLast(){
+    if(!state.last){ lastPanel.style.display='none'; return; }
+    lastPanel.style.display='block';
+    totalEl.textContent = state.last.total;
+    subEl.textContent = `${state.last.qty}×d${state.last.sides}${state.last.mod? (state.last.mod>0? ' + '+state.last.mod : ' − '+Math.abs(state.last.mod)) : ''} → сумма ${state.last.sum}${state.last.explode?' (взрывные)':''}`;
+    if(state.showDetails){
+      const parts = state.last.chains.map(ch=> '['+ch.join('+')+']').join(', ');
+      rollsEl.textContent = `Кости: ${parts}`;
+    } else {
+      rollsEl.textContent = '';
+    }
+  }
+
+  function renderHistory(){
+    historyEl.innerHTML='';
+    state.history.forEach(h=>{
+      const item = document.createElement('div'); item.className='history-item';
+      const top = document.createElement('div'); top.className='history-top';
+      const total = document.createElement('div'); total.className='chip'; total.textContent=h.total;
+      top.append(total); item.append(top);
+      if(state.showDetails){
+        const d = document.createElement('div'); d.className='result-sub'; d.style.marginTop='6px';
+        const chains = h.chains ? h.chains.map(ch=> '['+ch.join('+')+']').join(', ') : h.rolls.join(', ');
+        d.textContent = `${h.qty}×d${h.sides}${h.mod? (h.mod>0? ' + '+h.mod : ' − '+Math.abs(h.mod)) : ''}${h.explode?' (взрывные)':''} → ${h.sum} — ${chains}`;
+        item.append(d);
+      }
+      historyEl.append(item);
+    });
+  }
+
+  // Shake to roll
+  let lastAccel={x:null,y:null,z:null}, lastTime=0;
+  window.addEventListener('devicemotion', (e)=>{
+    if(!state.shake) return;
+    const acc = e.accelerationIncludingGravity || e.acceleration; if(!acc) return;
+    const now = Date.now(); if(now-lastTime<200) return; lastTime=now;
+    if(lastAccel.x!==null){
+      const delta = Math.abs(acc.x-lastAccel.x) + Math.abs(acc.y-lastAccel.y) + Math.abs(acc.z-lastAccel.z);
+      if(delta>35) doRoll();
+    }
+    lastAccel={x:acc.x,y:acc.y,z:acc.z};
+  }, {passive:true});
+
+  // INIT
+  function init(){
+    qty.value = state.qty; mod.value = state.mod; tgExplode.checked=state.explode; tgVibrate.checked=state.haptics; tgSound.checked=state.sound; tgShake.checked=state.shake;
+    toggleDetails.textContent = state.showDetails? 'Скрыть детали':'Показать детали';
+    if(state.custom){ customWrap.style.display='flex'; customSides.value=state.customSides; } else { customWrap.style.display='none'; }
+    buildDice(); renderLast(); renderHistory();
+  }
+
+  document.getElementById('rollBtn').addEventListener('click', doRoll);
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Enter') doRoll(); });
+
+  btnClear.addEventListener('click', ()=>{ state.history=[]; renderHistory(); save(); });
+
+  init();
+})();
+</script>
+</body>
+</html>
