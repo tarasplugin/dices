@@ -24,15 +24,18 @@
     main{flex:1;display:flex;flex-direction:column;gap:14px;padding:14px}
     section > .hint{font-size:13px;color:var(--muted);margin-bottom:8px;display:block}
 
-    .dice-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+    .dice-grid{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scroll-snap-type:x mandatory}
+    .dice-grid > .btn{scroll-snap-align:start}
+    .dice-grid::-webkit-scrollbar{display:none}
+    .dice-grid{scrollbar-width:none;-ms-overflow-style:none}
     .btn{appearance:none;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:12px;padding:12px 10px;font-size:16px;font-weight:700;text-align:center;outline:none;transition:.15s transform,.15s background,.15s border}
     .btn:active{transform:scale(.98)}
     .btn.active{background:var(--accent);color:#06241a;border-color:#0ea972}
 
-    /* Mobile-first layout: stack controls on phones */
-    .row{display:grid;grid-template-columns:1fr;gap:12px}
-    @media (min-width:420px){ .row{grid-template-columns:1fr 1fr} }
-    @media (min-width:640px){ .row{grid-template-columns:1fr 1fr 1fr} }
+    /* Controls layout: qty + mod compact on one line, presets take remaining space */
+    .row{display:grid;grid-template-columns:auto auto 1fr;align-items:end;gap:12px}
+    @media (min-width:420px){ .row{grid-template-columns:auto auto 1fr} }
+    @media (min-width:640px){ .row{grid-template-columns:auto auto 1fr} }
 
     .field{display:flex;flex-direction:column;gap:6px}
     .ctrl{display:flex;align-items:center;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--panel)}
@@ -49,9 +52,12 @@
     .result-total{font-size:56px;font-weight:900;letter-spacing:-.02em}
     .result-sub{font-size:14px;color:var(--muted)}
 
-    .presets{display:grid;grid-template-columns:1fr;gap:8px}
-    @media (min-width:420px){ .presets{grid-template-columns:repeat(3,1fr)} }
-    .preset-btn{width:100%;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:12px;padding:12px 10px;font-size:15px;font-weight:700}
+    .presets{display:flex;gap:8px;align-items:center}
+    .preset-btn{width:44px;height:44px;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:12px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+    .preset-btn svg{width:22px;height:22px}
+    /* Make qty & mod blocks less wide */
+    .field.compact{min-width:120px;max-width:160px}
+    .field.compact .ctrl input{width:68px}
 
     .history{display:flex;flex-direction:column;gap:10px}
     .history-item{border:1px solid var(--border);background:var(--panel);border-radius:16px;padding:10px}
@@ -69,6 +75,9 @@
       padding: 8px 0;
       font-size: 16px;
     }
+
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .roll-die { filter: drop-shadow(0 10px 24px rgba(0,0,0,.35)); }
   </style>
 </head>
 <body>
@@ -93,7 +102,7 @@
 
     <!-- Quantity / Modifier / Presets -->
     <section class="row" aria-label="quantity and modifier">
-      <div class="field">
+      <div class="field compact">
         <div class="hint">Кубиков</div>
         <div class="ctrl">
           <button id="qtyMinus" aria-label="минус">−</button>
@@ -101,7 +110,7 @@
           <button id="qtyPlus" aria-label="плюс">+</button>
         </div>
       </div>
-      <div class="field">
+      <div class="field compact">
         <div class="hint">Модификатор</div>
         <div class="ctrl">
           <button id="modMinus" aria-label="мод минус">−</button>
@@ -112,9 +121,25 @@
       <div class="field">
         <div class="hint">Пресеты</div>
         <div class="presets">
-          <button class="preset-btn" id="preset-attack">Атака</button>
-          <button class="preset-btn" id="preset-damage">Урон</button>
-          <button class="preset-btn" id="preset-save">Спас</button>
+          <button class="preset-btn" id="preset-attack" aria-label="Атака">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 3l7 7-4 4-7-7 4-4z"></path>
+              <path d="M3 21l6-6"></path>
+            </svg>
+          </button>
+          <button class="preset-btn" id="preset-damage" aria-label="Урон">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v6"></path>
+              <path d="M12 22l-3-7 3-3 3 3-3 7z"></path>
+              <circle cx="12" cy="10" r="1.5"></circle>
+            </svg>
+          </button>
+          <button class="preset-btn" id="preset-save" aria-label="Спасбросок">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3l7 4v5a7 7 0 1 1-14 0V7l7-4z"></path>
+              <path d="M12 8v8"></path>
+            </svg>
+          </button>
         </div>
       </div>
     </section>
@@ -122,12 +147,6 @@
     <!-- Roll & toggles -->
     <section>
       <button id="rollBtn" class="roll">Бросить</button>
-      <div class="toggles">
-        <label><input type="checkbox" id="tgExplode" /> Взрывные</label>
-        <label id="vibrateLabel"><input type="checkbox" id="tgVibrate" checked /> Вибро</label>
-        <label><input type="checkbox" id="tgSound" /> Звук</label>
-        <label><input type="checkbox" id="tgShake" /> Тряска = бросок</label>
-      </div>
     </section>
 
     <!-- Last result -->
@@ -147,7 +166,10 @@
       <div id="history" class="history"></div>
     </section>
 
-    
+    <audio id="diceSound" src="the-dice-are-shuffled-and-thrown.mp3" preload="auto"></audio>
+    <div id="rollingOverlay" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(11,18,32,.6);backdrop-filter:blur(2px);z-index:20">
+      <svg id="rollingSVG" class="roll-die" viewBox="0 0 96 96" width="120" height="120" fill="none" stroke="currentColor" stroke-width="4" style="animation:spin 1s linear infinite;color:#e2e8f0"></svg>
+    </div>
   </main>
 </div>
 
@@ -158,7 +180,7 @@
 
   // STATE
   let state = { sides:20, custom:false, customSides:3, qty:1, mod:0, showDetails:true,
-                explode:false, haptics:true, sound:false, shake:false, history:[], last:null };
+                explode:false, haptics:true, sound:true, shake:true, history:[], last:null };
 
   // ELEMENTS
   const diceGrid = document.getElementById('diceGrid');
@@ -172,10 +194,6 @@
   const modMinus = document.getElementById('modMinus');
   const modPlus = document.getElementById('modPlus');
 
-  const tgExplode = document.getElementById('tgExplode');
-  const tgVibrate = document.getElementById('tgVibrate');
-  const tgSound = document.getElementById('tgSound');
-  const tgShake = document.getElementById('tgShake');
 
   const toggleDetails = document.getElementById('toggleDetails');
   const lastPanel = document.getElementById('lastPanel');
@@ -192,24 +210,61 @@
   const vibrate = (pattern=[20]) => {
     if (!state.haptics || !vibSupported) return;
     try {
-      const ok = navigator.vibrate(pattern);
-      if (ok === false) {
-        vibSupported = false;
-        disableVibrateToggle('Вибрация не поддерживается');
-      }
+      navigator.vibrate(pattern);
     } catch(e){
       vibSupported = false;
-      disableVibrateToggle('Вибрация не поддерживается');
     }
   };
-  let audioCtx=null; const playSound = () => {
-    if(!state.sound) return;
-    try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
-      const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-      o.type='triangle'; o.frequency.value = 420 + Math.random()*80; g.gain.value=0.002;
-      o.connect(g); g.connect(audioCtx.destination); o.start(); setTimeout(()=>o.stop(), 120);
-    }catch(e){}
+  const diceAudio = document.getElementById('diceSound');
+  const playSound = () => {
+    if (!diceAudio) return;
+    try {
+      diceAudio.pause();
+      diceAudio.currentTime = 0;
+      diceAudio.playbackRate = 1.0;
+      diceAudio.volume = 0.75;
+      diceAudio.play().catch(()=>{});
+    } catch(e) {}
   };
+
+  // Overlay helpers
+  const overlay = document.getElementById('rollingOverlay');
+  const rollingSVG = document.getElementById('rollingSVG');
+  let rollingId = 0;
+  let pendingResult = null;
+
+  function polygonPoints(n, r=36, cx=48, cy=48) {
+    const pts = [];
+    for (let i=0;i<n;i++){
+      const a = (Math.PI*2*i/n) - Math.PI/2;
+      pts.push([cx + r*Math.cos(a), cy + r*Math.sin(a)]);
+    }
+    return pts.map(p=>p.join(',')).join(' ');
+  }
+  function setDieSVG(sides){
+    let svg = '';
+    if (sides === 100) {
+      // draw a decagon to represent d100 visually
+      svg = `<polygon points="${polygonPoints(10)}" />`;
+    } else if (sides >= 3 && sides <= 32) {
+      svg = `<polygon points="${polygonPoints(sides)}" />`;
+    } else {
+      svg = `<circle cx="48" cy="48" r="36" />`;
+    }
+    rollingSVG.innerHTML = svg;
+  }
+  function showRolling(sides){
+    setDieSVG(sides);
+    if (diceAudio && isFinite(diceAudio.duration) && diceAudio.duration>0) {
+      rollingSVG.style.animationDuration = diceAudio.duration + 's';
+    } else {
+      rollingSVG.style.animationDuration = '1.5s';
+    }
+    overlay.style.display = 'flex';
+  }
+  function hideRolling(){
+    overlay.style.display = 'none';
+  }
 
   // PERSIST
   try{ const saved = JSON.parse(localStorage.getItem('pfr_dice_state')||'{}'); Object.assign(state, saved); }catch(e){}
@@ -245,11 +300,6 @@
   modMinus.addEventListener('click', ()=>{ state.mod=(parseInt(mod.value,10)||0)-1; mod.value=state.mod; save(); });
   modPlus.addEventListener('click', ()=>{ state.mod=(parseInt(mod.value,10)||0)+1; mod.value=state.mod; save(); });
   mod.addEventListener('input', ()=>{ state.mod = parseInt(mod.value||'0',10)||0; save(); });
-
-  tgExplode.addEventListener('change', ()=>{ state.explode=tgExplode.checked; save(); });
-  tgVibrate.addEventListener('change', ()=>{ state.haptics=tgVibrate.checked; save(); if (state.haptics) vibrate([15]); });
-  tgSound.addEventListener('change', ()=>{ state.sound=tgSound.checked; save(); });
-  tgShake.addEventListener('change', ()=>{ state.shake=tgShake.checked; save(); });
 
   toggleDetails.addEventListener('click', ()=>{
     state.showDetails=!state.showDetails;
@@ -297,10 +347,19 @@
     const total = sum + modN;
 
     const res = { ts: Date.now(), sides, qty: qtyN, mod: modN, rolls: rollsFlat, chains: perDieChains, sum, total, explode: state.explode };
-    state.last = res; state.history = [res, ...state.history].slice(0,25);
-
-    vibrate([10,30,10]); playSound();
-    renderLast(); renderHistory(); save();
+    pendingResult = res;
+    rollingId++;
+    const myId = rollingId;
+    showRolling(sides);
+    vibrate([10,30,10]);
+    playSound();
+    diceAudio.onended = () => {
+      if (myId !== rollingId) return;
+      state.last = pendingResult;
+      state.history = [state.last, ...state.history].slice(0,25);
+      hideRolling();
+      renderLast(); renderHistory(); save();
+    };
   }
 
   // RENDER
@@ -337,7 +396,6 @@
   // Shake to roll
   let lastAccel={x:null,y:null,z:null}, lastTime=0;
   window.addEventListener('devicemotion', (e)=>{
-    if(!state.shake) return;
     const acc = e.accelerationIncludingGravity || e.acceleration; if(!acc) return;
     const now = Date.now(); if(now-lastTime<200) return; lastTime=now;
     if(lastAccel.x!==null){
@@ -347,19 +405,9 @@
     lastAccel={x:acc.x,y:acc.y,z:acc.z};
   }, {passive:true});
 
-  // Helpers to disable vibrate toggle when unsupported
-  function disableVibrateToggle(msg){
-    const label = document.getElementById('vibrateLabel');
-    if (!label) return;
-    tgVibrate.checked = false;
-    tgVibrate.disabled = true;
-    label.style.opacity = .6;
-    label.title = msg || 'Вибрация недоступна';
-  }
-
   // INIT
   function init(){
-    qty.value = state.qty; mod.value = state.mod; tgExplode.checked=state.explode; tgVibrate.checked=state.haptics; tgSound.checked=state.sound; tgShake.checked=state.shake;
+    qty.value = state.qty; mod.value = state.mod;
     toggleDetails.textContent = state.showDetails? 'Скрыть детали':'Показать детали';
     if(state.custom){ customWrap.style.display='flex'; customSides.value=state.customSides; } else { customWrap.style.display='none'; }
     buildDice(); renderLast(); renderHistory();
@@ -370,14 +418,7 @@
 
   btnClear.addEventListener('click', ()=>{ state.history=[]; renderHistory(); save(); });
 
-  // Detect unsupported environments (e.g., iOS Safari) and HTTP
-  if (!('vibrate' in navigator)) disableVibrateToggle('Вибрация не поддерживается в этом браузере');
-  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-    // Вибро в некоторых браузерах работает только по HTTPS
-    // Не блокируем, но предупреждаем через title
-    const label = document.getElementById('vibrateLabel');
-    if (label && !tgVibrate.disabled) label.title = 'Совет: включите HTTPS/Pages, чтобы вибрация работала стабильнее';
-  }
+  // No vibrate toggle warning needed anymore
   init();
 })();
 </script>
