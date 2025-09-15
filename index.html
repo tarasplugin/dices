@@ -236,7 +236,7 @@
   mod.addEventListener('input', ()=>{ state.mod = parseInt(mod.value||'0',10)||0; save(); });
 
   tgExplode.addEventListener('change', ()=>{ state.explode=tgExplode.checked; save(); });
-  tgVibrate.addEventListener('change', ()=>{ state.haptics=tgVibrate.checked; save(); if (state.haptics) vibrate([15]); }); });
+  tgVibrate.addEventListener('change', ()=>{ state.haptics=tgVibrate.checked; save(); if (state.haptics) vibrate([15]); });
   tgSound.addEventListener('change', ()=>{ state.sound=tgSound.checked; save(); });
   tgShake.addEventListener('change', ()=>{ state.shake=tgShake.checked; save(); });
 
