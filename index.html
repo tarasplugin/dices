@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Pathfinder Dice Roller</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%2310b981'/%3E%3Ctext x='12' y='16' font-size='12' font-weight='700' text-anchor='middle' fill='white'%3Ed20%3C/text%3E%3C/svg%3E">
   <meta name="theme-color" content="#0b1220" />
   <style>
     :root{
@@ -208,6 +209,8 @@
   let rollNumTimer = null;
   let finalNumTimeout = null;
 
+  const END_PAUSE_MS = 1000; // пауза после окончания звука, чтобы рассмотреть итог
+
   function polygonPoints(n, r=36, cx=48, cy=48) {
     const pts = [];
     for (let i=0;i<n;i++){
@@ -277,17 +280,29 @@
       state.last = pendingResult;
       state.history = [state.last, ...state.history].slice(0,25);
 
+      // Показать финальное число в дайсе
       const t = document.getElementById('rollingNum');
       if (t) t.textContent = String(state.last.total);
 
+      // Остановить таймеры «мигания» цифр
       if (rollNumTimer) { clearInterval(rollNumTimer); rollNumTimer = null; }
       if (finalNumTimeout) { clearTimeout(finalNumTimeout); finalNumTimeout = null; }
-      hideRolling();
-      renderLast(); renderHistory(); save();
+
+      // Поставить на паузу вращение и дать пользователю 2 сек. рассмотреть грань
+      try { rollingSVG.style.animationPlayState = 'paused'; } catch(e) {}
+
+      setTimeout(() => {
+        hideRolling();
+        // восстановим состояние для следующего броска
+        try { rollingSVG.style.animationPlayState = 'running'; } catch(e) {}
+        renderLast(); renderHistory(); save();
+      }, END_PAUSE_MS);
     };
   }
+
   function showRolling(sides){
     setDieSVG(sides);
+    rollingSVG.style.animationPlayState = 'running';
     if (diceAudio && isFinite(diceAudio.duration) && diceAudio.duration>0) {
       rollingSVG.style.animationDuration = diceAudio.duration + 's';
     } else {
